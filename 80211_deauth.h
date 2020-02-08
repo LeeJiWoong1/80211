@@ -1,0 +1,140 @@
+#ifndef __MAIN_HEADER_
+#define __MAIN_HEADER_
+
+#include <iostream>
+#include <string>
+#include <iomanip>
+#include <thread>
+#include <list>
+#include <map>
+#include <set>
+
+#include <pcap.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <termios.h>
+#include <string.h>
+#include "ieee80211/ieee80211.h"
+#include "ieee80211/ieee80211_radiotap.h"
+
+using namespace std;
+using namespace __gnu_cxx;
+
+#define BIT(n) 1 << n
+#define padding(n) setw(n) << setfill(' ')
+
+typedef enum _IEEE80211_ENCRYPTION
+{
+    IEEE80211_ENCRYPTION_UNKNOWN,
+    IEEE80211_ENCRYPTION_OPEN,
+    IEEE80211_ENCRYPTION_WEP,
+    IEEE80211_ENCRYPTION_WPA,
+    IEEE80211_ENCRYPTION_WPA2,
+    IEEE80211_ENCRYPTION_WPA2WPA
+} IEEE80211_ENCRYPTION;
+
+typedef struct _AP_INFO
+{
+    string ssid;
+    string bssid;
+    uint8_t channel;
+    uint8_t signal;
+    IEEE80211_ENCRYPTION enc;
+    set<string> dev;
+} AP_INFO, *PAP_INFO;
+
+typedef struct _DEAUTH
+{
+    string bssid;
+    string dev;
+    int count;
+} Deauth, *PDeauth;
+
+struct ieee80211_management_infomation
+{
+    uint8_t    _tag_number;
+    uint8_t    _tag_length;
+    uint8_t    _tag_data[];
+} __attribute__ ((packed));
+
+struct ieee80211_management_vendor_infomation
+{
+    uint8_t    _tag_number;
+    uint8_t    _tag_length;
+    uint32_t   _tag_oui:24;
+    uint8_t    _tag_oui_type;
+    uint8_t    _tag_data[0];
+} __attribute__ ((packed));
+
+struct ieee80211_radiotap_present
+{
+    uint8_t    _flags;
+    uint8_t    _rate;
+    uint16_t   _channel;
+    uint16_t   _channel_flags;
+    int8_t      _antenna_signal;
+    uint8_t    _antenna;
+    uint16_t   _rx_flags;
+} __attribute__ ((packed));
+
+class CAnalyze 
+{
+    #define PCAP_READABLE_SIZE 65536
+    #define PCAP_OPENFLAG_PROMISCUOUS 1
+    #define PCAP_OPENFLAG_NON_PROMISCUOUS 0
+    
+    public:
+        CAnalyze();
+        ~CAnalyze();
+
+        bool selcet_device();
+        void do_start(void);
+        
+        pcap_t *_device_handle;
+        char * _device_name;
+
+    private:
+        bool thread_statu;
+
+        pcap_if_t *_device_all;
+        pcap_if_t *_device_temp;
+        list<char *> _device_list;
+        char _errbuf[PCAP_ERRBUF_SIZE];
+
+        pcap_pkthdr *header;
+
+        AP_INFO ap_info;
+        map<string, AP_INFO> all_ap;
+
+        list<Deauth> deauth_list;
+        list<Deauth> deauth_print_list;
+
+    protected:
+        bool all_device();
+        bool get_info();
+        void get_radiotap(const u_char *_data, uint8_t *_signal);
+        bool send_deauth();
+        void print_ap();
+        void change_channel();
+        int getch();
+        void thread_control();
+
+        bool addPadding(int tLength) { return tLength % 2; }
+        void needPadding(int *thisPointer, size_t addPointer)
+        {
+            if (addPadding(*thisPointer))
+                *thisPointer += addPointer + sizeof(uint8_t);
+            else
+                *thisPointer += addPointer;
+        }
+        void needPadding(int *thisPointer)
+        {
+            if (addPadding(*thisPointer))
+                *thisPointer += sizeof(uint8_t);
+        }
+
+        string AddrByteToString(uint8_t *_src, int _bufSize);
+        void AddrStringToByte(string _src, int _bufSize, uint8_t *_dst);
+};
+
+#endif
